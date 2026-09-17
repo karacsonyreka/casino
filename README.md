@@ -20,6 +20,16 @@ uv run pytest
 
 Without `uv`: `python -m pip install pytest`, then `python -m pytest`.
 
+## Play in the browser
+
+```sh
+uv run python server.py
+```
+
+This starts a local server at `http://127.0.0.1:8000/` and opens it in your
+browser automatically. Leave the terminal running while you play; `Ctrl+C`
+stops it.
+
 ## The interface the tests use
 
 ```python

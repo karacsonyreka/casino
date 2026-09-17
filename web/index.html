@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cassino</title>
+<style>
+  :root {
+    --felt: #0b5c3c;
+    --felt-dark: #073e28;
+    --gold: #d4af37;
+    --card-w: 72px;
+    --card-h: 100px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
+    color: #f5ead0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+  h1 {
+    margin: 4px 0 2px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-shadow: 0 2px 4px rgba(0,0,0,.6);
+  }
+  .subtitle { opacity: .75; margin-bottom: 12px; font-style: italic; }
+
+  .board {
+    width: 100%;
+    max-width: 720px;
+    background: rgba(0,0,0,0.18);
+    border: 3px solid var(--gold);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 0 60px rgba(0,0,0,.3);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+  .label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--gold);
+    opacity: .9;
+  }
+  .stat { font-size: 13px; opacity: .85; }
+
+  .hand, .table-cards {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-height: calc(var(--card-h) + 4px);
+    align-items: center;
+    padding: 6px 0;
+  }
+
+  .card {
+    width: var(--card-w);
+    height: var(--card-h);
+    background: #fdf8ec;
+    border-radius: 8px;
+    border: 1px solid #999;
+    box-shadow: 0 3px 6px rgba(0,0,0,.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5px 6px;
+    font-weight: bold;
+    font-size: 16px;
+    color: #1a1a1a;
+    cursor: default;
+    user-select: none;
+    transition: transform .12s ease, box-shadow .12s ease;
+    flex-shrink: 0;
+  }
+  .card.red { color: #b8253a; }
+  .card .rank { line-height: 1; }
+  .card .suit-center { font-size: 26px; align-self: center; }
+  .card .rank.bottom { align-self: flex-end; transform: rotate(180deg); }
+
+  .card.selectable { cursor: pointer; }
+  .card.selectable:hover { transform: translateY(-6px); box-shadow: 0 8px 14px rgba(0,0,0,.5); }
+  .card.selected {
+    transform: translateY(-10px);
+    box-shadow: 0 0 0 3px var(--gold), 0 8px 14px rgba(0,0,0,.5);
+  }
+
+  .card-back {
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: 8px;
+    border: 1px solid #333;
+    background:
+      repeating-linear-gradient(45deg, #7a1f2b, #7a1f2b 6px, #611723 6px, #611723 12px);
+    box-shadow: 0 3px 6px rgba(0,0,0,.4);
+    flex-shrink: 0;
+  }
+
+  .computer-hand, .talon-stack {
+    display: flex;
+    gap: -8px;
+  }
+  .computer-hand .card-back:not(:first-child),
+  .talon-stack .card-back:not(:first-child) {
+    margin-left: -46px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 1px;
+    padding: 9px 18px;
+    border-radius: 24px;
+    border: 1px solid var(--gold);
+    background: linear-gradient(180deg, #c99a2e, #a87f1f);
+    color: #2a1c00;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,.4);
+  }
+  button:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: transparent;
+    color: var(--gold);
+  }
+
+  .status-line {
+    text-align: center;
+    min-height: 20px;
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--gold);
+  }
+
+  .log {
+    margin-top: 14px;
+    background: rgba(0,0,0,.25);
+    border-radius: 10px;
+    padding: 4px 12px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .log-entry {
+    padding: 5px 0 5px 10px;
+    border-left: 3px solid transparent;
+    opacity: .85;
+  }
+  .log-entry:not(:last-child) { border-bottom: 1px solid rgba(212,175,55,.12); }
+  .log-entry.you { border-left-color: var(--gold); }
+  .log-entry.computer { border-left-color: #8aa9c9; }
+  .log-entry:last-child { opacity: 1; }
+
+  .card-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+    background: #fdf8ec;
+    color: #1a1a1a;
+    border-radius: 4px;
+    padding: 0 5px;
+    margin: 0 1px;
+    font-weight: bold;
+    font-size: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  .card-chip.red { color: #b8253a; }
+
+  .score-panel {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 16px;
+  }
+  .score-panel .winner { color: var(--gold); font-size: 20px; font-weight: bold; }
+
+  hr {
+    border: none;
+    border-top: 1px solid rgba(212,175,55,.35);
+    margin: 10px 0;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal {
+    background: linear-gradient(180deg, #0e6b45, #073e28);
+    border: 2px solid var(--gold);
+    border-radius: 14px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 22px 26px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.6);
+  }
+  .modal h2 {
+    color: var(--gold);
+    margin-top: 0;
+    letter-spacing: 2px;
+  }
+  .modal h3 {
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .modal p, .modal li { font-size: 14px; line-height: 1.55; }
+  .modal ul, .modal ol { padding-left: 20px; margin-top: 4px; }
+  .value-table {
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 14px;
+  }
+  .value-table td {
+    padding: 4px 10px 4px 0;
+    vertical-align: middle;
+  }
+  .value-table .card-chip {
+    min-width: 20px;
+    text-align: center;
+    font-size: 14px;
+  }
+  .value-table .v {
+    color: var(--gold);
+    font-weight: bold;
+  }
+  .hu {
+    opacity: .65;
+    font-style: italic;
+    font-size: 12px;
+  }
+  .modal .example {
+    background: rgba(0,0,0,.25);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  .modal-close-row { text-align: right; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <h1>CASSINO</h1>
+  <div class="subtitle">the Hungarian two-player Kaszinó &mdash; you against the computer</div>
+
+  <div class="modal-backdrop" id="tutorial-backdrop" hidden>
+    <div class="modal">
+      <h2>How to play</h2>
+
+      <h3>Goal</h3>
+      <p>Capture as many valuable cards as you can from the table. Points are tallied once the whole deck has been played.</p>
+
+      <h3>Card values</h3>
+      <p>Number cards (2&ndash;10) are worth their face value. The four figure cards don't show a number on the card itself, but each still has a fixed value for capturing:</p>
+      <table class="value-table">
+        <tr><td class="card-chip">A</td><td>Ace <span class="hu">(Ász)</span></td><td class="v">= 1</td></tr>
+        <tr><td class="card-chip">J</td><td>Jack <span class="hu">(Alsó / Bubi)</span></td><td class="v">= 11</td></tr>
+        <tr><td class="card-chip">Q</td><td>Queen <span class="hu">(Felső / Dáma)</span></td><td class="v">= 12</td></tr>
+        <tr><td class="card-chip">K</td><td>King <span class="hu">(Király)</span></td><td class="v">= 13</td></tr>
+      </table>
+      <div class="example">
+        Example: a King is worth 13, so it captures any table cards that add up to 13 &mdash; a single King, or e.g. a 4 + 9, or a Jack + 2 (11 + 2).
+      </div>
+
+      <h3>Your turn</h3>
+      <p>Play exactly one card from your hand. There are two things you can do with it:</p>
+      <ul>
+        <li><strong>Place it</strong> &mdash; put it face up on the table, adding to the cards already there.</li>
+        <li><strong>Capture</strong> &mdash; take one or more table cards whose values add up to the value of that single card.</li>
+      </ul>
+      <div class="example">
+        Example: an 8 captures a single 8 on the table, or a 5 + 3 on the table (they add up to 8).
+      </div>
+      <p>In this table, click a card from your hand to select it (clicking another hand card swaps the selection &mdash; only one card is played per turn). If you also want to capture, click the matching table card(s) too &mdash; the status line tells you once the selection adds up to a legal move. Then press <strong>Play</strong>.</p>
+
+      <h3>Sweeps</h3>
+      <p>If your capture takes every card currently on the table, that's a <strong>sweep</strong> &mdash; worth an extra point at the end of the deal.</p>
+
+      <h3>New rounds</h3>
+      <p>Each player starts with 3 cards. Once both hands are empty, 3 fresh cards are dealt to each player from the stock (if any remain), and whoever captured most recently leads the new round.</p>
+
+      <h3>End of the deal</h3>
+      <p>When the stock runs out and both hands are finally empty, any cards still left on the table go to whoever captured last.</p>
+
+      <h3>Scoring</h3>
+      <ul>
+        <li>3 points for capturing the majority of the 52 cards (27+)</li>
+        <li>2 points for capturing the majority of spades (7+)</li>
+        <li>1 point for each ace you capture</li>
+        <li>2 points for capturing the 10 of diamonds ("Big Cassino")</li>
+        <li>1 point for capturing the 2 of spades ("Little Cassino")</li>
+        <li>1 point per sweep</li>
+      </ul>
+      <p>Highest total wins the deal.</p>
+
+      <div class="modal-close-row">
+        <button id="tutorial-close">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="board">
+    <div class="row">
+      <span class="label">Computer</span>
+      <span class="stat" id="computer-stats"></span>
+    </div>
+    <div class="computer-hand" id="computer-hand"></div>
+
+    <hr>
+
+    <div class="row">
+      <span class="label">Table</span>
+      <span class="stat" id="talon-stats"></span>
+    </div>
+    <div class="table-cards" id="table-cards"></div>
+
+    <hr>
+
+    <div class="row">
+      <span class="label">Your hand</span>
+      <span class="stat" id="your-stats"></span>
+    </div>
+    <div class="hand" id="your-hand"></div>
+
+    <div class="controls">
+      <button id="play-btn" disabled>Play</button>
+      <button id="clear-btn" class="secondary">Clear selection</button>
+      <button id="new-btn" class="secondary">New deal</button>
+      <button id="help-btn" class="secondary">How to play</button>
+    </div>
+    <div class="status-line" id="status-line"></div>
+    <div class="score-panel" id="score-panel"></div>
+
+    <div class="log" id="log"></div>
+  </div>
+
+<script>
+(() => {
+  const RANK_ORDER = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+  const SUIT_SYMBOL = { S: "♠", H: "♥", D: "♦", C: "♣" };
+
+  function parseCard(card) {
+    const suit = card.slice(-1);
+    const rank = card.slice(0, -1);
+    return { rank, suit };
+  }
+
+  function sortCards(cards) {
+    return [...cards].sort((a, b) => {
+      const pa = parseCard(a), pb = parseCard(b);
+      const ra = RANK_ORDER.indexOf(pa.rank), rb = RANK_ORDER.indexOf(pb.rank);
+      if (ra !== rb) return ra - rb;
+      return pa.suit.localeCompare(pb.suit);
+    });
+  }
+
+  let state = null;
+  let selectedHand = new Set();
+  let selectedTable = new Set();
+
+  const els = {
+    computerHand: document.getElementById("computer-hand"),
+    computerStats: document.getElementById("computer-stats"),
+    tableCards: document.getElementById("table-cards"),
+    talonStats: document.getElementById("talon-stats"),
+    yourHand: document.getElementById("your-hand"),
+    yourStats: document.getElementById("your-stats"),
+    playBtn: document.getElementById("play-btn"),
+    clearBtn: document.getElementById("clear-btn"),
+    newBtn: document.getElementById("new-btn"),
+    helpBtn: document.getElementById("help-btn"),
+    statusLine: document.getElementById("status-line"),
+    scorePanel: document.getElementById("score-panel"),
+    log: document.getElementById("log"),
+    tutorialBackdrop: document.getElementById("tutorial-backdrop"),
+    tutorialClose: document.getElementById("tutorial-close"),
+  };
+
+  function openTutorial() { els.tutorialBackdrop.hidden = false; }
+  function closeTutorial() {
+    els.tutorialBackdrop.hidden = true;
+    try { localStorage.setItem("cassino-tutorial-seen", "1"); } catch (e) { /* ignore */ }
+  }
+
+  function makeCardEl(card, { selectable, selected } = {}) {
+    const { rank, suit } = parseCard(card);
+    const el = document.createElement("div");
+    el.className = "card" + (suit === "H" || suit === "D" ? " red" : "");
+    if (selectable) el.classList.add("selectable");
+    if (selected) el.classList.add("selected");
+    el.innerHTML = `
+      <div class="rank">${rank}<br>${SUIT_SYMBOL[suit]}</div>
+      <div class="suit-center">${SUIT_SYMBOL[suit]}</div>
+      <div class="rank bottom">${rank}<br>${SUIT_SYMBOL[suit]}</div>
+    `;
+    return el;
+  }
+
+  function makeCardBack() {
+    const el = document.createElement("div");
+    el.className = "card-back";
+    return el;
+  }
+
+  function isSelectionLegal() {
+    if (!state || !state.legal_moves) return false;
+    const h = [...selectedHand].sort();
+    const t = [...selectedTable].sort();
+    return state.legal_moves.some(m => {
+      const mh = [...m.hand].sort();
+      const mt = [...m.table].sort();
+      return mh.length === h.length && mh.every((c, i) => c === h[i]) &&
+             mt.length === t.length && mt.every((c, i) => c === t[i]);
+    });
+  }
+
+  function render() {
+    if (!state) return;
+    const yourTurn = state.player === 0 && !state.deal_over;
+
+    // computer
+    els.computerHand.innerHTML = "";
+    for (let i = 0; i < state.computer_count; i++) els.computerHand.appendChild(makeCardBack());
+    els.computerStats.textContent = `${state.computer_count} cards in hand · ${state.computer_pile_count} captured · ${state.sweeps[1]} sweep${state.sweeps[1] === 1 ? "" : "s"}`;
+
+    // table
+    els.tableCards.innerHTML = "";
+    for (const card of sortCards(state.table)) {
+      const el = makeCardEl(card, { selectable: yourTurn, selected: selectedTable.has(card) });
+      if (yourTurn) el.addEventListener("click", () => {
+        if (selectedTable.has(card)) selectedTable.delete(card); else selectedTable.add(card);
+        render();
+      });
+      els.tableCards.appendChild(el);
+    }
+    els.talonStats.textContent = `${state.talon_count} left in the stock`;
+
+    // your hand
+    els.yourHand.innerHTML = "";
+    for (const card of sortCards(state.you)) {
+      const el = makeCardEl(card, { selectable: yourTurn, selected: selectedHand.has(card) });
+      if (yourTurn) el.addEventListener("click", () => {
+        // Only one card from hand may be played per turn.
+        selectedHand = selectedHand.has(card) ? new Set() : new Set([card]);
+        render();
+      });
+      els.yourHand.appendChild(el);
+    }
+    els.yourStats.textContent = `${state.your_pile_count} captured · ${state.sweeps[0]} sweep${state.sweeps[0] === 1 ? "" : "s"}`;
+
+    // controls
+    const legal = yourTurn && selectedHand.size > 0 && isSelectionLegal();
+    els.playBtn.disabled = !legal;
+    els.clearBtn.disabled = selectedHand.size === 0 && selectedTable.size === 0;
+
+    if (state.deal_over) {
+      els.statusLine.textContent = "";
+      const [p0, p1] = state.score;
+      const verdict = p0 > p1 ? "You win the deal!" : p0 < p1 ? "The computer wins the deal." : "It's a tie.";
+      els.scorePanel.innerHTML = `<div class="winner">${verdict}</div><div>You: ${p0} &nbsp;&mdash;&nbsp; Computer: ${p1}</div>`;
+    } else {
+      els.scorePanel.innerHTML = "";
+      if (!yourTurn) {
+        els.statusLine.textContent = "Computer is thinking…";
+      } else if (selectedHand.size === 0) {
+        els.statusLine.textContent = "Select a card from your hand — add table cards to capture, or none to place it.";
+      } else if (!legal) {
+        els.statusLine.textContent = "That selection doesn't add up to a legal move yet.";
+      } else if (selectedTable.size > 0) {
+        els.statusLine.textContent = "Ready to capture. Press Play.";
+      } else {
+        els.statusLine.textContent = "Ready to place that card. Press Play.";
+      }
+    }
+  }
+
+  const CARD_TOKEN = /\b(10|[A2-9JQK])([SHDC])\b/g;
+
+  function prettyCardsHtml(text) {
+    return text.replace(CARD_TOKEN, (match, rank, suit) => {
+      const cls = (suit === "H" || suit === "D") ? "red" : "black";
+      return `<span class="card-chip ${cls}">${rank}${SUIT_SYMBOL[suit]}</span>`;
+    });
+  }
+
+  function appendLog(lines) {
+    for (const line of lines) {
+      const div = document.createElement("div");
+      div.className = "log-entry " + (line.startsWith("You") ? "you" : line.startsWith("The computer") ? "computer" : "");
+      div.innerHTML = prettyCardsHtml(line);
+      els.log.appendChild(div);
+    }
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "request failed");
+    return data;
+  }
+
+  async function newDeal() {
+    els.log.innerHTML = "";
+    selectedHand = new Set();
+    selectedTable = new Set();
+    state = await api("/api/new");
+    appendLog(state.log);
+    render();
+  }
+
+  async function playSelection() {
+    const hand = [...selectedHand];
+    const table = [...selectedTable];
+    selectedHand = new Set();
+    selectedTable = new Set();
+    try {
+      state = await api("/api/move", { hand, table });
+      appendLog(state.log);
+    } catch (err) {
+      appendLog(["Illegal move: " + err.message]);
+    }
+    render();
+  }
+
+  els.playBtn.addEventListener("click", playSelection);
+  els.clearBtn.addEventListener("click", () => { selectedHand = new Set(); selectedTable = new Set(); render(); });
+  els.newBtn.addEventListener("click", newDeal);
+  els.helpBtn.addEventListener("click", openTutorial);
+  els.tutorialClose.addEventListener("click", closeTutorial);
+  els.tutorialBackdrop.addEventListener("click", (e) => {
+    if (e.target === els.tutorialBackdrop) closeTutorial();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !els.tutorialBackdrop.hidden) closeTutorial();
+  });
+
+  let seenTutorial = false;
+  try { seenTutorial = localStorage.getItem("cassino-tutorial-seen") === "1"; } catch (e) { /* ignore */ }
+  if (!seenTutorial) openTutorial();
+
+  newDeal();
+})();
+</script>
+</body>
+</html>
